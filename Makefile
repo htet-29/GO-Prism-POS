@@ -16,3 +16,7 @@ test/cover:
 	@go tool cover -html=coverage.out -o=coverage/cover.html
 	@echo 'Serving Coverage HTML File...'
 	@python3 -m http.server 8080 -d coverage
+
+.PHONY: build/api
+build/api:
+	@go build -ldflags='-s' -o=./bin/api ./cmd/api
