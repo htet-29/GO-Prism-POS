@@ -3,7 +3,7 @@ project_name: prism_pos
 
 builds:
   - main: ./cmd/api/
-  - env: [CGO_ENABLE=0]
+    env: [CGO_ENABLED=0]
     goos: [linux, windows, darwin]
     goarch: [amd64, arm64]
     ldflags:
