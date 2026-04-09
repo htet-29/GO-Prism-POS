@@ -1,30 +1,66 @@
 # This workflow will build a golang project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
 
-name: Go
+name: Go CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
     steps:
-    - uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.mod'
-    - name: Revive Set up
-      uses: morphy2k/revive-action@v2.7.8
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
 
-    - name: Build
-      run: go build -v ./...
+      - name: Install dependencies
+        run: go mod download
 
-    - name: Test
-      run: go test -v ./...
+      - name: Revive Set up
+        uses: morphy2k/revive-action@v2.7.8
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Run Tests & Generate Coverage
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Go Test Coverage Check
+        id: coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: coverage.out
+          local-prefix: github.com/${{github.repository}}
+          threshold-file: 0
+          threshold-package: 0
+          threshold-total: 0
+
+      - name: Upload Coverage Report Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-coverage-report
+          path: coverage.out
+
+      - name: Generate Coverage HTML
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload HTML Visualizer
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: coverage.html
