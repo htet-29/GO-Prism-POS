@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS inventory (
+  id SERIAL PRIMARY KEY,
+  sku VARCHAR(50) UNIQUE NOT NULL,
+  item_name TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+  image_url TEXT DEFAULT 'https://my-cdn.com/placeholder.png',
+  created_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
