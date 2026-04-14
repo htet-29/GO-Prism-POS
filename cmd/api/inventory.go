@@ -9,11 +9,13 @@ import (
 
 	"github.com/htet-29/prism_pos/internal/data"
 	"github.com/htet-29/prism_pos/internal/domain"
+	"github.com/htet-29/prism_pos/internal/validator"
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 )
 
 func (app *application) createItemHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: add category
 	var input struct {
 		SKU      string          `json:"sku"`
 		Name     string          `json:"name"`
@@ -27,16 +29,25 @@ func (app *application) createItemHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	item := domain.Item{
+	// TODO: add category
+	item := &domain.Item{
 		SKU:      input.SKU,
 		Name:     input.Name,
 		Quantity: input.Quantity,
 		Price:    input.Price,
 	}
 
+	v := validator.New()
+
+	if domain.ValidateMovie(v, item); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
+	// TODO: add category
 	dbItem, err := app.db.CreateItem(ctx, data.CreateItemParams{
 		Sku:      item.SKU,
 		ItemName: item.Name,
@@ -106,11 +117,12 @@ func (app *application) updateItemHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// TODO: add category
 	var input struct {
-		SKU      string          `json:"sku"`
-		Name     string          `json:"name"`
-		Quantity int32           `json:"quantity"`
-		Price    decimal.Decimal `json:"price"`
+		SKU      *string          `json:"sku"`
+		Name     *string          `json:"name"`
+		Quantity *int32           `json:"quantity"`
+		Price    *decimal.Decimal `json:"price"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -119,16 +131,43 @@ func (app *application) updateItemHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if input.SKU != nil {
+		dbItem.Sku = *input.SKU
+	}
+
+	if input.Name != nil {
+		dbItem.ItemName = *input.Name
+	}
+
+	if input.Quantity != nil {
+		dbItem.Quantity = *input.Quantity
+	}
+
+	if input.Price != nil {
+		dbItem.Price = decimalToNumeric(*input.Price)
+	}
+
+	// TODO: add category
+
+	v := validator.New()
+
+	item := toDomainItem(dbItem)
+
+	if domain.ValidateMovie(v, item); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
 	updateCTX, updateCancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer updateCancel()
 
 	updateItem, err := app.db.UpdateItem(updateCTX, data.UpdateItemParams{
-		ID:       dbItem.ID,
-		Sku:      input.SKU,
-		ItemName: input.Name,
-		Quantity: input.Quantity,
-		Price:    decimalToNumeric(input.Price),
-		Version:  dbItem.Version,
+		ID:       item.ID,
+		Sku:      item.SKU,
+		ItemName: item.Name,
+		Quantity: item.Quantity,
+		Price:    decimalToNumeric(item.Price),
+		Version:  item.Version,
 	})
 	if err != nil {
 		app.handleDatabaseError(w, r, err)

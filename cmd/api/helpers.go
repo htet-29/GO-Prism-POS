@@ -129,6 +129,7 @@ func toDomainItem(dbItem data.Inventory) *domain.Item {
 		SKU:      dbItem.Sku,
 		Name:     dbItem.ItemName,
 		Quantity: dbItem.Quantity,
+		Version:  dbItem.Version,
 	}
 
 	if dbItem.Price.Valid && dbItem.Price.Int != nil {
