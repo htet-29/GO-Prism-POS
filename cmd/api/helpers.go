@@ -6,15 +6,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/htet-29/prism_pos/internal/data"
 	"github.com/htet-29/prism_pos/internal/domain"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
 )
 
 type envelope map[string]any
+
+func (app *application) readIDParam(r *http.Request) (int64, error) {
+	parmas := httprouter.ParamsFromContext(r.Context())
+	id, err := strconv.ParseInt(parmas.ByName("id"), 10, 64)
+	if err != nil || id < 1 {
+		return 0, errors.New("invalid id parameter")
+	}
+
+	return id, nil
+}
 
 // writeJSON parse provided data with built-in json.MarshalIndent function to provide
 // indented space seperated json data and response back.

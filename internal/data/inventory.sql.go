@@ -44,3 +44,24 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Invento
 	)
 	return i, err
 }
+
+const getItemByID = `-- name: GetItemByID :one
+SELECT id, sku, item_name, quantity, price, image_url, created_at, updated_at FROM inventory 
+WHERE id = $1
+`
+
+func (q *Queries) GetItemByID(ctx context.Context, id int32) (Inventory, error) {
+	row := q.db.QueryRow(ctx, getItemByID, id)
+	var i Inventory
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.ItemName,
+		&i.Quantity,
+		&i.Price,
+		&i.ImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
