@@ -17,4 +17,5 @@ type Inventory struct {
 	ImageUrl  pgtype.Text
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
+	Version   int32
 }

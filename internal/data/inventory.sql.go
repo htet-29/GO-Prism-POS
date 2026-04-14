@@ -14,7 +14,7 @@ import (
 const createItem = `-- name: CreateItem :one
 INSERT INTO inventory (sku, item_name, quantity, price)
 VALUES ($1, $2, $3, $4)
-RETURNING id, sku, item_name, quantity, price, image_url, created_at, updated_at
+RETURNING id, sku, item_name, quantity, price, image_url, created_at, updated_at, version
 `
 
 type CreateItemParams struct {
@@ -41,12 +41,13 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Invento
 		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getItemByID = `-- name: GetItemByID :one
-SELECT id, sku, item_name, quantity, price, image_url, created_at, updated_at FROM inventory 
+SELECT id, sku, item_name, quantity, price, image_url, created_at, updated_at, version FROM inventory 
 WHERE id = $1
 `
 
@@ -62,6 +63,47 @@ func (q *Queries) GetItemByID(ctx context.Context, id int32) (Inventory, error) 
 		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const updateItem = `-- name: UpdateItem :one
+UPDATE inventory
+SET sku  = $1, item_name = $2, quantity = $3, price = $4, version = version + 1
+WHERE id = $5 AND version = $6
+RETURNING id, sku, item_name, quantity, price, image_url, created_at, updated_at, version
+`
+
+type UpdateItemParams struct {
+	Sku      string
+	ItemName string
+	Quantity int32
+	Price    pgtype.Numeric
+	ID       int32
+	Version  int32
+}
+
+func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (Inventory, error) {
+	row := q.db.QueryRow(ctx, updateItem,
+		arg.Sku,
+		arg.ItemName,
+		arg.Quantity,
+		arg.Price,
+		arg.ID,
+		arg.Version,
+	)
+	var i Inventory
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.ItemName,
+		&i.Quantity,
+		&i.Price,
+		&i.ImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }

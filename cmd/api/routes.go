@@ -22,6 +22,7 @@ func (app *application) routes() http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/items/:id", app.showItemHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/items", app.createItemHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/items/:id", app.updateItemHandler)
 
 	return router
 }

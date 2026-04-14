@@ -27,7 +27,7 @@ func (app *application) createItemHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	item := &domain.Item{
+	item := domain.Item{
 		SKU:      input.SKU,
 		Name:     input.Name,
 		Quantity: input.Quantity,
@@ -44,20 +44,16 @@ func (app *application) createItemHandler(w http.ResponseWriter, r *http.Request
 		Price:    decimalToNumeric(item.Price),
 	})
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			app.serverErrorResponse(w, r, errors.New("database operation time out"))
-			return
-		}
-		app.serverErrorResponse(w, r, err)
+		app.handleDatabaseError(w, r, err)
 		return
 	}
 
-	convertToDomainItem(dbItem, item)
+	domainItem := toDomainItem(dbItem)
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", item.ID))
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", domainItem.ID))
 
-	err = app.writeJSON(w, http.StatusCreated, envelope{"item": item}, nil)
+	err = app.writeJSON(w, http.StatusCreated, envelope{"item": domainItem}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -75,6 +71,30 @@ func (app *application) showItemHandler(w http.ResponseWriter, r *http.Request) 
 
 	dbItem, err := app.db.GetItemByID(ctx, int32(id))
 	if err != nil {
+		app.handleDatabaseError(w, r, err)
+		return
+	}
+
+	domainItem := toDomainItem(dbItem)
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"item": domainItem}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateItemHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	getCTX, getCancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer getCancel()
+
+	dbItem, err := app.db.GetItemByID(getCTX, int32(id))
+	if err != nil {
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			app.notFoundResponse(w, r)
@@ -86,10 +106,38 @@ func (app *application) showItemHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var item domain.Item
-	convertToDomainItem(dbItem, &item)
+	var input struct {
+		SKU      string          `json:"sku"`
+		Name     string          `json:"name"`
+		Quantity int32           `json:"quantity"`
+		Price    decimal.Decimal `json:"price"`
+	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"item": item}, nil)
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	updateCTX, updateCancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer updateCancel()
+
+	updateItem, err := app.db.UpdateItem(updateCTX, data.UpdateItemParams{
+		ID:       dbItem.ID,
+		Sku:      input.SKU,
+		ItemName: input.Name,
+		Quantity: input.Quantity,
+		Price:    decimalToNumeric(input.Price),
+		Version:  dbItem.Version,
+	})
+	if err != nil {
+		app.handleDatabaseError(w, r, err)
+		return
+	}
+
+	domainItem := toDomainItem(updateItem)
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"item": domainItem}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

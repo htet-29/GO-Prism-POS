@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/htet-29/prism_pos/internal/data"
 	"github.com/htet-29/prism_pos/internal/domain"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/julienschmidt/httprouter"
 	"github.com/shopspring/decimal"
@@ -120,13 +123,62 @@ func decimalToNumeric(d decimal.Decimal) pgtype.Numeric {
 	}
 }
 
-func convertToDomainItem(dbItem data.Inventory, domainItem *domain.Item) {
-	domainItem.ID = dbItem.ID
-	domainItem.SKU = dbItem.Sku
-	domainItem.Name = dbItem.ItemName
-	domainItem.Price = decimal.NewFromBigInt(dbItem.Price.Int, dbItem.Price.Exp)
-	domainItem.Quantity = dbItem.Quantity
-	domainItem.CreatedAt = dbItem.CreatedAt.Time.UTC()
-	domainItem.UpdatedAt = dbItem.UpdatedAt.Time.UTC()
-	domainItem.ImageURL = dbItem.ImageUrl.String
+func toDomainItem(dbItem data.Inventory) *domain.Item {
+	item := &domain.Item{
+		ID:       dbItem.ID,
+		SKU:      dbItem.Sku,
+		Name:     dbItem.ItemName,
+		Quantity: dbItem.Quantity,
+	}
+
+	if dbItem.Price.Valid && dbItem.Price.Int != nil {
+		item.Price = decimal.NewFromBigInt(dbItem.Price.Int, dbItem.Price.Exp)
+	} else {
+		item.Price = decimal.Zero
+	}
+
+	if dbItem.CreatedAt.Valid {
+		item.CreatedAt = dbItem.CreatedAt.Time.UTC()
+	}
+
+	if dbItem.UpdatedAt.Valid {
+		item.UpdatedAt = dbItem.UpdatedAt.Time.UTC()
+	}
+
+	if dbItem.ImageUrl.Valid {
+		item.ImageURL = dbItem.ImageUrl.String
+	}
+
+	return item
+}
+
+func (app *application) handleDatabaseError(w http.ResponseWriter, r *http.Request, err error) {
+	if err == nil {
+		return
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505": // unique_violation
+			app.badRequestResponse(w, r, errors.New("this record already exists or conflict with another"))
+			return
+		case "23503": // foreign_key_violation
+			app.badRequestResponse(w, r, errors.New("the referenced record does not exist"))
+			return
+		default:
+			app.logger.Error("unhandled postgres error", "code", pgErr.Code, "message", pgErr.Message)
+			app.serverErrorResponse(w, r, errors.New("the server encountered a database problem"))
+			return
+		}
+	}
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		app.notFoundResponse(w, r)
+	case errors.Is(err, context.DeadlineExceeded):
+		app.serverErrorResponse(w, r, errors.New("database operation time out"))
+	default:
+		app.serverErrorResponse(w, r, err)
+	}
 }
