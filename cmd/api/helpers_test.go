@@ -2,10 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/htet-29/prism_pos/internal/assert"
+	"github.com/julienschmidt/httprouter"
+	"github.com/shopspring/decimal"
 )
 
 func TestWriteJSON(t *testing.T) {
@@ -183,6 +189,134 @@ func TestReadJSON(t *testing.T) {
 				if !strings.Contains(err.Error(), tc.expectedErr) {
 					t.Errorf("expected error to contain %q, got: %q", tc.expectedErr, err.Error())
 				}
+			}
+		})
+	}
+}
+
+func TestReadIDParam(t *testing.T) {
+	app := application{}
+	tt := []struct {
+		name        string
+		idParam     string
+		expectedID  int64
+		expectError bool
+	}{
+		{
+			name:        "Valid ID",
+			idParam:     "123",
+			expectedID:  123,
+			expectError: false,
+		},
+		{
+			name:        "Negative ID",
+			idParam:     "-1",
+			expectedID:  0,
+			expectError: true,
+		},
+		{
+			name:        "Zero ID",
+			idParam:     "0",
+			expectedID:  0,
+			expectError: true,
+		},
+		{
+			name:        "Non-numeric ID",
+			idParam:     "abc",
+			expectedID:  0,
+			expectError: true,
+		},
+		{
+			name:        "Empty ID",
+			idParam:     "",
+			expectedID:  0,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			params := httprouter.Params{
+				httprouter.Param{Key: "id", Value: tc.idParam},
+			}
+
+			ctx := context.WithValue(r.Context(), httprouter.ParamsKey, params)
+			r = r.WithContext(ctx)
+
+			id, err := app.readIDParam(r)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("expected an error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+
+			assert.Equal(t, tc.expectedID, id)
+		})
+	}
+}
+
+func TestDecimalToNumeric(t *testing.T) {
+	tt := []struct {
+		name          string
+		input         string
+		expectedCoeff int64
+		expectedExp   int32
+	}{
+		{
+			name:          "Positive whole number",
+			input:         "42",
+			expectedCoeff: 42,
+			expectedExp:   0,
+		},
+		{
+			name:          "Positive decimal (Price format)",
+			input:         "10.50",
+			expectedCoeff: 1050, // 10.50 ကို Base-10 ဖြင့်ခွဲလျှင် 1050 * 10^-2 ဖြစ်သည်
+			expectedExp:   -2,
+		},
+		{
+			name:          "Negative decimal",
+			input:         "-99.99",
+			expectedCoeff: -9999,
+			expectedExp:   -2,
+		},
+		{
+			name:          "Zero value",
+			input:         "0",
+			expectedCoeff: 0,
+			expectedExp:   0,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			dec := decimal.RequireFromString(tc.input)
+
+			result := decimalToNumeric(dec)
+
+			if !result.Valid {
+				t.Error("Expected Valid to be true, got false")
+			}
+
+			if result.Exp != tc.expectedExp {
+				t.Errorf("expected Exp %d, got %d", tc.expectedExp, result.Exp)
+			}
+
+			if result.Int == nil {
+				t.Fatalf("expected Int to not be nil")
+			}
+
+			expectedBigInt := big.NewInt(tc.expectedCoeff)
+
+			if result.Int.Cmp(expectedBigInt) != 0 {
+				t.Errorf("expected Int %s, got %s", expectedBigInt.String(), result.Int.String())
 			}
 		})
 	}

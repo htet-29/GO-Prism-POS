@@ -36,6 +36,25 @@ func PermittedValue[T comparable](value T, permittedValues ...T) bool {
 	return slices.Contains(permittedValues, value)
 }
 
+func GetNotPermittedValues[T comparable](inputValues []T, permittedValues []T) []T {
+	var invalidValues []T
+
+	// 1. Convert permitted values to a map for O(1) lookup
+	permittedMap := make(map[T]bool)
+	for _, v := range permittedValues {
+		permittedMap[v] = true
+	}
+
+	// 2. Identify which inputs are missing from the map
+	for _, value := range inputValues {
+		if _, ok := permittedMap[value]; !ok {
+			invalidValues = append(invalidValues, value)
+		}
+	}
+
+	return invalidValues
+}
+
 func Matches(value string, rx *regexp.Regexp) bool {
 	return rx.MatchString(value)
 }

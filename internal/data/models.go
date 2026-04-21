@@ -8,6 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Category struct {
+	ID          int32
+	Name        string
+	Description pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Inventory struct {
 	ID        int32
 	Sku       string
@@ -18,4 +25,9 @@ type Inventory struct {
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 	Version   int32
+}
+
+type InventoryCategory struct {
+	ItemID     int32
+	CategoryID int32
 }

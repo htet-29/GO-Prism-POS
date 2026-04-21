@@ -30,10 +30,11 @@ type config struct {
 }
 
 type application struct {
-	config config
-	logger *slog.Logger
-	db     *data.Queries
-	wg     sync.WaitGroup
+	config  config
+	logger  *slog.Logger
+	pool    *pgxpool.Pool
+	queries *data.Queries
+	wg      sync.WaitGroup
 }
 
 func main() {
@@ -61,7 +62,6 @@ func main() {
 
 	poolCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
 	pool, err := createPool(poolCtx, cfg)
 	if err != nil {
 		logger.Error(err.Error())
@@ -69,14 +69,15 @@ func main() {
 	}
 	defer pool.Close()
 
-	db := data.New(pool)
+	queries := data.New(pool)
 
 	logger.Info("database connection pool established")
 
 	app := &application{
-		config: cfg,
-		logger: logger,
-		db:     db,
+		config:  cfg,
+		logger:  logger,
+		pool:    pool,
+		queries: queries,
 	}
 
 	err = app.server()

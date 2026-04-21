@@ -123,13 +123,14 @@ func decimalToNumeric(d decimal.Decimal) pgtype.Numeric {
 	}
 }
 
-func toDomainItem(dbItem data.Inventory) *domain.Item {
+func toDomainItem(dbItem data.Inventory, categories []string) *domain.Item {
 	item := &domain.Item{
-		ID:       dbItem.ID,
-		SKU:      dbItem.Sku,
-		Name:     dbItem.ItemName,
-		Quantity: dbItem.Quantity,
-		Version:  dbItem.Version,
+		ID:         dbItem.ID,
+		SKU:        dbItem.Sku,
+		Name:       dbItem.ItemName,
+		Quantity:   dbItem.Quantity,
+		Categories: categories,
+		Version:    dbItem.Version,
 	}
 
 	if dbItem.Price.Valid && dbItem.Price.Int != nil {
